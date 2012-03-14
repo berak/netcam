@@ -7,6 +7,7 @@ using namespace cv;
 
 
 #ifdef _WIN32
+	using w32::Thread;
 	struct CriticalSection : public CRITICAL_SECTION 
 	{
 		CriticalSection()	{ InitializeCriticalSection(this); 	}	
@@ -21,71 +22,69 @@ using namespace cv;
 
 
 
-void client(int sock, Mat & frame)
-{
-	Birds::Read(sock); // we're not interested in the request, but flush the input anyway.
-	Birds::Write(sock,"200 HTTP/1.1 ok\r\n",0);
-	Birds::Write(sock,"Content-Type: multipart/x-mixed-replace; boundary=mjpegstream\r\nPragma: no-cache\r\n\r\n",0);
-
-	for ( ;; ) 
-	{
-		if(!frame.data) break;
-		g_critter.lock();
-			// convert the image to JPEG
-			std::vector<uchar>outbuf;
-			std::vector<int> params;
-			params.push_back(CV_IMWRITE_JPEG_QUALITY);
-			params.push_back(100);
-			cv::imencode(".jpg", frame, outbuf, params);
-			int outlen = outbuf.size();
-		g_critter.unlock();
-
-		char head[400];
-		sprintf(head,"--mjpegstream\r\nContent-Type: image/jpeg\r\nContent-Length: %lu\r\n\r\n",outlen);
-		Birds::Write(sock,head,0);
-		int n2 = Birds::Write(sock,(char*)(&outbuf[0]),outlen);
-		if ( n2 < outlen )
-			break;
-
-		Sleep(50);
-	}
-	Birds::Close(sock);
-}
-
-
 
 int count = 0;
 
-class ClientThread : public w32::Thread
+class ClientThread : public Thread
 {
 	int sock;
 	cv::Mat & frame;
 public:
+
 	ClientThread(int s, cv::Mat & frame) 
 		: sock(s), frame(frame) 
 	{
 		 count ++;
-		 printf("+ %2d " __FUNCTION__ "\t%x\n",count, this);
+		 printf("+ %2d " __FUNCTION__ "  %x\n",count, this);
 	}
+
 	~ClientThread() 
 	{
 		count --;
-		printf("- %2d " __FUNCTION__ "\t%x\n",count, this);
+		printf("- %2d " __FUNCTION__ "  %x\n",count, this);
 	}
+
 	virtual void run()
 	{
-		client(sock, frame);
+		Birds::Read(sock); // we're not interested in the request, but flush the input anyway.
+		Birds::Write(sock,"200 HTTP/1.1 ok\r\n",0);
+		Birds::Write(sock,"Content-Type: multipart/x-mixed-replace; boundary=mjpegstream\r\n\r\n",0);
+
+		for ( ;; ) 
+		{
+			if(!frame.data) break;
+			g_critter.lock();
+				// convert the image to JPEG
+				std::vector<uchar>outbuf;
+				std::vector<int> params;
+				params.push_back(CV_IMWRITE_JPEG_QUALITY);
+				params.push_back(100);
+				cv::imencode(".jpg", frame, outbuf, params);
+				int outlen = outbuf.size();
+			g_critter.unlock();
+
+			char head[400];
+			sprintf(head,"--mjpegstream\r\nContent-Type: image/jpeg\r\nContent-Length: %lu\r\n\r\n",outlen);
+			Birds::Write(sock,head,0);
+			int n2 = Birds::Write(sock,(char*)(&outbuf[0]),outlen);
+			if ( n2 < outlen )
+				break;
+
+			Sleep(50);
+		}
+		Birds::Close(sock);
 		delete this;
 	}
 };
 
 
 
-class CaptureThread :  public w32::Thread
+class CaptureThread :  public Thread
 {
 	VideoCapture & cap;
 	Mat & frame;
 public:
+
 	CaptureThread(VideoCapture &cap, Mat & frame )
 		: cap(cap), frame(frame) { }
 
@@ -99,7 +98,6 @@ public:
 
 			Sleep(30);
 		}
-		delete this;
 	}
 };
 
@@ -114,8 +112,8 @@ int main()
 	bool ok = cap.open(0);
 	if ( ! ok ) 
 		return 1;
-	CaptureThread ct(cap,frame);
-	ct.start();
+	CaptureThread *ct = new CaptureThread(cap,frame);
+	ct->start();
 
 	// start the webserver in the main thread
 	int serv = Birds::Server(7777);
@@ -130,6 +128,7 @@ int main()
 		cl->start();
 	}
 	Birds::Close(serv);
+	delete ct;
 	return 0;
 }
 
