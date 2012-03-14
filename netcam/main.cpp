@@ -16,16 +16,7 @@ using namespace cv;
 		void unlock()		{ LeaveCriticalSection( this );		}
 	} g_critter;
 #else
-	#include <pthread.h>
-	#include <unistd.h>
-	class Mutex {
-		pthread_mutex_t mutex;
-	public:
-		Mutex()              { pthread_mutex_init(&(mutex),NULL); }
-		~Mutex()             { pthread_mutex_destroy(&(mutex)); }
-		inline void lock()   { pthread_mutex_lock(&(mutex)); }
-		inline void unlock() { pthread_mutex_unlock(&(mutex)); }
-	} g_critter;
+	Mutex g_critter;
 #endif
 
 
@@ -63,6 +54,7 @@ void client(int s, Mat & frame)
 
 
 int count = 0;
+
 
 class ClientThread : public w32::Thread
 {

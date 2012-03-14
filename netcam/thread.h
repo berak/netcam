@@ -9,21 +9,6 @@
 namespace w32
 {
 	///////////////////////////////////////////////////////////////////////////////////////
-	// Mutex
-	///////////////////////////////////////////////////////////////////////////////////////
-	class Mutex {
-		HANDLE mutex;
-	public:
-		Mutex()              { mutex = CreateMutex(NULL,FALSE,NULL); }
-		~Mutex()             { CloseHandle(mutex); }
-		inline void lock()   { WaitForSingleObject(mutex,INFINITE); }
-		inline void unlock() { ReleaseMutex(mutex); }
-	};
-	
-	
-	
-	
-	///////////////////////////////////////////////////////////////////////////////////////
 	// Thread
 	///////////////////////////////////////////////////////////////////////////////////////
 	
@@ -67,9 +52,10 @@ namespace w32
 		::Sleep( millis );
 	}
 	
-	
-	
-	#else // ! _WIN32, use pthreads:
+
+};
+
+#else // ! _WIN32, use pthreads:
 	 #include <pthread.h>
 	 #include <stdio.h>
 	 #include <unistd.h>
@@ -125,8 +111,6 @@ namespace w32
 	}
 
 #endif // ! _WIN32
-
-};
 
 
 #endif //__ENGINE_THREAD_H__
