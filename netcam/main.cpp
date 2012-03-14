@@ -21,11 +21,11 @@ using namespace cv;
 
 
 
-void client(int s, Mat & frame)
+void client(int sock, Mat & frame)
 {
-	Birds::Read(s); // we're not interested in the request, but flush the input anyway.
-	Birds::Write(s,"200 HTTP/1.1 ok\r\n",0);
-	Birds::Write(s,"Content-Type: multipart/x-mixed-replace; boundary=mjpegstream\r\nPragma: no-cache\r\n\r\n",0);
+	Birds::Read(sock); // we're not interested in the request, but flush the input anyway.
+	Birds::Write(sock,"200 HTTP/1.1 ok\r\n",0);
+	Birds::Write(sock,"Content-Type: multipart/x-mixed-replace; boundary=mjpegstream\r\nPragma: no-cache\r\n\r\n",0);
 
 	for ( ;; ) 
 	{
@@ -42,27 +42,27 @@ void client(int s, Mat & frame)
 
 		char head[400];
 		sprintf(head,"--mjpegstream\r\nContent-Type: image/jpeg\r\nContent-Length: %lu\r\n\r\n",outlen);
-		Birds::Write(s,head,0);
-		int n2 = Birds::Write(s,(char*)(&outbuf[0]),outlen);
+		Birds::Write(sock,head,0);
+		int n2 = Birds::Write(sock,(char*)(&outbuf[0]),outlen);
 		if ( n2 < outlen )
 			break;
 
 		Sleep(50);
 	}
-	Birds::Close(s);
+	Birds::Close(sock);
 }
+
 
 
 int count = 0;
 
-
 class ClientThread : public w32::Thread
 {
-	int s;
+	int sock;
 	cv::Mat & frame;
 public:
 	ClientThread(int s, cv::Mat & frame) 
-		: s(s), frame(frame) 
+		: sock(s), frame(frame) 
 	{
 		 count ++;
 		 printf("+ %2d " __FUNCTION__ "\t%x\n",count, this);
@@ -74,7 +74,7 @@ public:
 	}
 	virtual void run()
 	{
-		client(s, frame);
+		client(sock, frame);
 		delete this;
 	}
 };
@@ -88,11 +88,10 @@ class CaptureThread :  public w32::Thread
 public:
 	CaptureThread(VideoCapture &cap, Mat & frame )
 		: cap(cap), frame(frame) { }
-	~CaptureThread() {}
+
 	virtual void run()
 	{
-		bool ok = cap.open(0);
-		while ( ok )
+		for ( ;; )
 		{
 			g_critter.lock();
 				cap >> frame;
@@ -108,20 +107,26 @@ public:
 
 int main()
 {
-	VideoCapture cap;
 	Mat frame;
 
+	// start the capture in its own thread
+	VideoCapture cap;
+	bool ok = cap.open(0);
+	if ( ! ok ) 
+		return 1;
 	CaptureThread ct(cap,frame);
 	ct.start();
 
+	// start the webserver in the main thread
 	int serv = Birds::Server(7777);
-	while(1) 
+	while(serv > -1) 
 	{
-		int c = Birds::Accept(serv);
-		if ( c < 0 ) 
+		// one more thread per client
+		int cls = Birds::Accept(serv);
+		if ( cls < 0 ) 
 			break;
 
-		ClientThread * cl = new ClientThread(c,frame);
+		ClientThread * cl = new ClientThread(cls,frame);
 		cl->start();
 	}
 	Birds::Close(serv);
