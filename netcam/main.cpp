@@ -111,7 +111,10 @@ int main()
 	VideoCapture cap;
 	bool ok = cap.open(0);
 	if ( ! ok ) 
+	{
+		printf("no cam found ;(.\n");
 		return 1;
+	}
 	CaptureThread *ct = new CaptureThread(cap,frame);
 	ct->start();
 
