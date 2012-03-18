@@ -2,6 +2,8 @@
 #include "opencv/highgui.h"
 using namespace cv;
 
+#include <conio.h>
+
 #include "birds.h"
 #include "thread.h"
 
@@ -24,21 +26,22 @@ using namespace cv;
 
 
 int count = 0;
+int DELAY = 83; // 12 fps
 
-class ClientThread : public Thread
+class WebSession : public Thread
 {
 	int sock;
 	cv::Mat & frame;
 public:
 
-	ClientThread(int s, cv::Mat & frame) 
+	WebSession(int s, cv::Mat & frame) 
 		: sock(s), frame(frame) 
 	{
 		 count ++;
 		 printf("+ %2d " __FUNCTION__ "  %x\n",count, this);
 	}
 
-	~ClientThread() 
+	~WebSession() 
 	{
 		count --;
 		printf("- %2d " __FUNCTION__ "  %x\n",count, this);
@@ -46,13 +49,18 @@ public:
 
 	virtual void run()
 	{
-		Birds::Read(sock); // we're not interested in the request, but flush the input anyway.
+		char * h = Birds::Read(sock); // we're not interested in the request, but flush the input anyway.
+		printf(h);
 		Birds::Write(sock,"200 HTTP/1.1 ok\r\n",0);
-		Birds::Write(sock,"Content-Type: multipart/x-mixed-replace; boundary=mjpegstream\r\n\r\n",0);
+		Birds::Write(sock,
+			"Server: Mozarella/2.2\r\n"
+			"Accept-Range: bytes\r\n"
+			"Connection: close\r\n"
+			"Content-Type: multipart/x-mixed-replace; boundary=mjpegstream\r\n"
+			"\r\n",0);
 
-		for ( ;; ) 
+		while ( frame.data ) 
 		{
-			if(!frame.data) break;
 			g_critter.lock();
 				// convert the image to JPEG
 				std::vector<uchar>outbuf;
@@ -67,10 +75,10 @@ public:
 			sprintf(head,"--mjpegstream\r\nContent-Type: image/jpeg\r\nContent-Length: %lu\r\n\r\n",outlen);
 			Birds::Write(sock,head,0);
 			int n2 = Birds::Write(sock,(char*)(&outbuf[0]),outlen);
+			printf("%4x %d\n",sock,n2);
 			if ( n2 < outlen )
 				break;
-
-			Sleep(50);
+			Sleep(DELAY);
 		}
 		Birds::Close(sock);
 		delete this;
@@ -78,26 +86,30 @@ public:
 };
 
 
-
-class CaptureThread :  public Thread
+class WebListener :  public Thread
 {
 	VideoCapture & cap;
 	Mat & frame;
 public:
 
-	CaptureThread(VideoCapture &cap, Mat & frame )
-		: cap(cap), frame(frame) { }
+	WebListener( VideoCapture &cap, Mat & frame )
+		: cap(cap), frame(frame) {}
 
 	virtual void run()
 	{
-		for ( ;; )
+		int serv = Birds::Server(7777);
+		while(serv > -1) 
 		{
-			g_critter.lock();
-				cap >> frame;
-			g_critter.unlock();
+			int cls = Birds::Accept(serv);
+			if ( cls < 0 ) 
+				break;
+			if ( ! cap.isOpened() )
+				break;
 
-			Sleep(30);
+			WebSession * cl = new WebSession(cls,frame);
+			cl->start();
 		}
+		Birds::Close(serv);
 	}
 };
 
@@ -107,7 +119,6 @@ int main()
 {
 	Mat frame;
 
-	// start the capture in its own thread
 	VideoCapture cap;
 	bool ok = cap.open(0);
 	if ( ! ok ) 
@@ -115,23 +126,22 @@ int main()
 		printf("no cam found ;(.\n");
 		return 1;
 	}
-	CaptureThread *ct = new CaptureThread(cap,frame);
-	ct->start();
 
-	// start the webserver in the main thread
-	int serv = Birds::Server(7777);
-	while(serv > -1) 
+	WebListener *cl = new WebListener(cap,frame);
+	cl->start();
+
+	while ( cap.isOpened() )
 	{
-		// one more thread per client
-		int cls = Birds::Accept(serv);
-		if ( cls < 0 ) 
-			break;
+		g_critter.lock();
+			cap >> frame;
+		g_critter.unlock();
 
-		ClientThread * cl = new ClientThread(cls,frame);
-		cl->start();
+		if ( kbhit() )
+			break;
+		Sleep(DELAY);
 	}
-	Birds::Close(serv);
-	delete ct;
+
+	delete cl;
 	return 0;
 }
 
