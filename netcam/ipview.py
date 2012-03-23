@@ -24,6 +24,7 @@ class WebListener( threading.Thread ):
 		self.uri = uri
 		self.port = port
 		self.img = None
+		self.frame = 0
 		
 	def readline(self):
 		s = BytesIO()
@@ -41,16 +42,17 @@ class WebListener( threading.Thread ):
 
 	def readhead( self ):
 		nb = 0
+		nit = 0
 		while self.web:
 			s = self.readline();
 			c = "Content-Length: "
 			if s.find(c)==0:
 				nb = int(s[len(c):])
-			print "#",s
-			if not s : return nb
+			#~ print "#",s
+			if (not s) and (nit>0) : return nb
+			nit += 1
 								
 	def run( self ):
-		i = 0
 		self.web = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		print self.host, str(self.web)
 		try:
@@ -63,26 +65,41 @@ class WebListener( threading.Thread ):
 		while self.web:
 			try:
 				nb = self.readhead()
-				if nb == 0:
-					return
+				nr = 0
 				res = BytesIO()
+				if nb == 0: # header had no 'Content-Length'
+					# slow. read single bytes, check for jpeg-end sequence ff d9
+					st = 0
+					while(nr < 2000000):
+						c = self.web.recv(1);
+						res.write(c)
+						b = ord(c)
+						if (b == 0xff): st = 1
+						elif (b == 0xd9) and (st == 1): break
+						else: st = 0
+						nr += 1
+						
+				# else  fast. read chunks
 				while ( nb>0 ):
 					c = self.web.recv(nb);
 					if not c : break
 					res.write(c)
 					nb -= len(c)
-					print len(c), str(c[:20])
+					nr += len(c)
+				
 				try:
-					self.img = Image.open(BytesIO(res.getvalue()))					
-				except:
-					print "invalid result"
-					pass
-				print i, nb,nr
+					self.img = Image.open(BytesIO(res.getvalue()))	
+				except Exception, e:
+					print "invalid result ", e
+					break
+					
+				print self.frame, nr
 				#~ self.img.save("./my.jpg");
 				time.sleep(0.02)
-				i += 1
+				self.frame += 1
 			except:
-				return
+				break
+		self.web.close()
 
 
 
@@ -90,7 +107,6 @@ class VizThread( threading.Thread ):
 	def __init__(self, web):
 		threading.Thread.__init__(self)
 		self.web = web
-		self.tick = 0
 
 	def run(self):
 		self.root = Tkinter.Tk()
@@ -102,7 +118,8 @@ class VizThread( threading.Thread ):
 		self.root.mainloop()
 		
 	def _quit(self):
-		self.web.web.close(); self.root.quit()		
+		self.web.web.close()
+		self.root.quit()		
 
 	def update(self, im):
 		if not im:
@@ -113,17 +130,23 @@ class VizThread( threading.Thread ):
 
 	def poll(self):
 		if self.update(self.web.img):
-			self.root.title( "frame " + str(self.tick) )
-			self.tick += 1
-			self.label.after( 100,self.poll )
+			self.root.title( "frame " + str(self.web.frame) )
 		else:
 			self.root.title( "frame -" )
-			self.label.after( 1000, self.poll )
+		self.label.after( 100, self.poll )
 		
 
 if __name__ == "__main__":
+	t1 = WebListener( port=80, host="camera.headend.csb1.ucla.net", uri="/mjpg/video.mjpg") 
+	#~ t1 = WebListener( port=8192, host="axis-91ffb4.axiscam.net", uri="/mjpg/video.mjpg?camera=1") # !!!1.9mb!!
+	#~ t1 = WebListener( port=80, host="trafficcam13.greensboro-nc.gov", uri="/mjpg/video.mjpg?camera=1")
+	#~ t1 = WebListener( port=80, host="tauchen-hamburg.axiscam.net", uri="/mjpg/video.mjpg?camera=1")
+	#~ t1 = WebListener( port=80, host="85.235.174.106", uri="/mjpg/video.mjpg")
+	#~ t1 = WebListener( port=8081, host="192.82.150.11", uri="/mjpg/video.mjpg?camera=1")
+	#~ t1 = WebListener( port=81, host="80.36.62.47", uri="/mjpg/video.mjpg?camera=1")
 	#~ t1 = WebListener( port=80, host="iosoft.evo.bg", uri="/cgi-bin/stream.mjpg")
-	t1 = WebListener()
+	#~ t1 = WebListener(7777, "localhost")
+	#~ t1 = WebListener(7777, "192.168.0.1")
 	vz = VizThread(t1)
 	vz.start()
 	t1.run()

@@ -73,6 +73,7 @@ public:
 
 			char head[400];
 			sprintf(head,"--mjpegstream\r\nContent-Type: image/jpeg\r\nContent-Length: %lu\r\n\r\n",outlen);
+			//sprintf(head,"--mjpegstream\r\nContent-Type: image/jpeg\r\n\r\n");
 			Birds::Write(sock,head,0);
 			int n2 = Birds::Write(sock,(char*)(&outbuf[0]),outlen);
 			printf("%4x %d\n",sock,n2);
