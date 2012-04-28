@@ -1,3 +1,4 @@
+http://www.vikingskipet.no/   
 http://jerome.dnsalias.net/mjpg/video.mjpg
 http://213.96.108.142:8883/mjpg/video.mjpg
 http://88.117.170.10/mjpg/video.mjpg

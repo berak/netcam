@@ -42,15 +42,15 @@ class WebListener( threading.Thread ):
 
 	def readhead( self ):
 		nb = 0
-		nit = 0
+		nlines = 0
 		while self.web:
 			s = self.readline();
 			c = "Content-Length: "
 			if s.find(c)==0:
 				nb = int(s[len(c):])
 			#~ print "#",s
-			if (not s) and (nit>0) : return nb
-			nit += 1
+			if (not s) and (nlines>1) : return nb
+			nlines += 1
 								
 	def run( self ):
 		self.web = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -90,7 +90,7 @@ class WebListener( threading.Thread ):
 				try:
 					self.img = Image.open(BytesIO(res.getvalue()))	
 				except Exception, e:
-					print "invalid result ", e
+					print "invalid result ", e, res.getvalue()[:40]
 					break
 					
 				print self.frame, nr
@@ -137,11 +137,12 @@ class VizThread( threading.Thread ):
 		
 
 if __name__ == "__main__":
-	t1 = WebListener( port=80, host="camera.headend.csb1.ucla.net", uri="/mjpg/video.mjpg") 
+	#~ t1 = WebListener( port=80, host="traf4.murfreesborotn.gov", uri="/axis-cgi/mjpg/video.cgi")
+	#~ t1 = WebListener( port=80, host="camera.headend.csb1.ucla.net", uri="/mjpg/video.mjpg") 
 	#~ t1 = WebListener( port=8192, host="axis-91ffb4.axiscam.net", uri="/mjpg/video.mjpg?camera=1") # !!!1.9mb!!
 	#~ t1 = WebListener( port=80, host="trafficcam13.greensboro-nc.gov", uri="/mjpg/video.mjpg?camera=1")
 	#~ t1 = WebListener( port=80, host="tauchen-hamburg.axiscam.net", uri="/mjpg/video.mjpg?camera=1")
-	#~ t1 = WebListener( port=80, host="85.235.174.106", uri="/mjpg/video.mjpg")
+	t1 = WebListener( port=80, host="85.235.174.106", uri="/mjpg/video.mjpg")
 	#~ t1 = WebListener( port=8081, host="192.82.150.11", uri="/mjpg/video.mjpg?camera=1")
 	#~ t1 = WebListener( port=81, host="80.36.62.47", uri="/mjpg/video.mjpg?camera=1")
 	#~ t1 = WebListener( port=80, host="iosoft.evo.bg", uri="/cgi-bin/stream.mjpg")
