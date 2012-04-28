@@ -6,9 +6,9 @@ namespace Birds
     int Server(int port);
     int Accept(int serv);
 
-    int Client(char *host, int port);
+    int Client(const char *host, int port);
 
-    int Write(int sock, char *s, int len);
+    int Write(int sock, const char *s, int len);
 
     char ReadByte(int sock);
     char * Read(int sock);

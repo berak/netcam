@@ -43,7 +43,7 @@ namespace Birds
 {
     static char _errbuf[2012];
 
-    int Client(char *host, int port) 
+    int Client(const char *host, int port) 
     {
         _errbuf[0]=0;
         SOCKADDR_IN   address;
@@ -110,7 +110,7 @@ namespace Birds
         return b;
     }
 
-    int Write( int sock, char *s, int len ) 
+    int Write( int sock, const char *s, int len ) 
     { 
         if ( len < 1 ) { len = strlen(s); }
         return ::send( sock, s, len, 0 );
